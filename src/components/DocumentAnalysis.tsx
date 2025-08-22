@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Box,
   Card,
@@ -14,7 +14,7 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  Divider,
+
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -28,7 +28,7 @@ import {
   Event,
   LocationOn,
   Lightbulb,
-  Error as ErrorIcon,
+
   Refresh,
   CheckCircle,
   ExpandMore,

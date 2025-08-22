@@ -1,11 +1,11 @@
-import React, { useCallback, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import * as pdfjsLib from 'pdfjs-dist'
 import {
   Box,
   Paper,
   Typography,
-  Button,
+
   CircularProgress,
   Alert,
   Chip,
@@ -14,7 +14,6 @@ import {
 import {
   Upload,
   Description,
-  Error,
   CheckCircle,
 } from '@mui/icons-material'
 

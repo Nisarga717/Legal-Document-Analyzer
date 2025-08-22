@@ -1,3 +1,10 @@
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+
 // Simple utility functions for the app
 export function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 Bytes'
