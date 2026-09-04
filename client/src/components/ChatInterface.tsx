@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   Box,
   Card,
@@ -18,9 +18,8 @@ import {
   Send,
   Person,
   SmartToy,
-  Error as ErrorIcon,
 } from '@mui/icons-material'
-import { GeminiService } from '../services/gemini'
+import { apiService } from '../services/api'
 import { formatTime } from '../lib/utils'
 
 interface Message {
@@ -34,9 +33,10 @@ interface ChatInterfaceProps {
   extractedText: string
   analysis: string
   fileName: string
+  documentId?: string
 }
 
-export function ChatInterface({ extractedText, analysis, fileName }: ChatInterfaceProps) {
+export function ChatInterface({ extractedText, analysis, fileName, documentId }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -51,29 +51,48 @@ export function ChatInterface({ extractedText, analysis, fileName }: ChatInterfa
     scrollToBottom()
   }, [messages])
 
-  // Add welcome message when component mounts
+  // Load chat history or add welcome message when document changes
   useEffect(() => {
-    if (extractedText && messages.length === 0) {
-      const welcomeMessage: Message = {
-        id: Date.now().toString(),
-        type: 'assistant',
-        content: `Hello! I've analyzed your document "${fileName}". You can now ask me specific questions about the content, legal provisions, clauses, or anything else related to this document. What would you like to know?`,
-        timestamp: new Date()
+    let isMounted = true;
+    const loadHistory = async () => {
+      if (documentId) {
+        try {
+          const history = await apiService.getChatHistory(documentId);
+          if (isMounted && history && history.length > 0) {
+            const formattedMessages: Message[] = history.map((msg: { sender: string; text: string; timestamp: string }, idx: number) => ({
+              id: idx.toString(),
+              type: msg.sender === 'user' ? 'user' : 'assistant',
+              content: msg.text,
+              timestamp: new Date(msg.timestamp)
+            }));
+            setMessages(formattedMessages);
+            return;
+          }
+        } catch (e) {
+          console.warn('Failed to load backend chat history', e);
+        }
       }
-      setMessages([welcomeMessage])
-    }
-  }, [extractedText, fileName, messages.length])
+
+      if (extractedText && isMounted) {
+        const welcomeMessage: Message = {
+          id: Date.now().toString(),
+          type: 'assistant',
+          content: `Hello! I've analyzed your document "${fileName}". You can now ask me specific questions about the content, legal provisions, clauses, or anything else related to this document. What would you like to know?`,
+          timestamp: new Date()
+        }
+        setMessages([welcomeMessage])
+      }
+    };
+
+    loadHistory();
+    return () => { isMounted = false; };
+  }, [extractedText, fileName, documentId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isLoading) return
 
-    if (!GeminiService.isConfigured()) {
-      setError('Gemini AI is not configured. Please check your API key.')
-      return
-    }
-
-    if (!extractedText) {
+    if (!extractedText && !documentId) {
       setError('No document text available. Please upload a document first.')
       return
     }
@@ -91,11 +110,12 @@ export function ChatInterface({ extractedText, analysis, fileName }: ChatInterfa
     setError(null)
 
     try {
-      const response = await GeminiService.askQuestion(
-        extractedText, 
-        userMessage.content, 
-        analysis
-      )
+      const response = await apiService.askQuestion({
+        documentId,
+        question: userMessage.content,
+        extractedText,
+        previousContext: typeof analysis === 'string' ? analysis : JSON.stringify(analysis)
+      })
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -111,7 +131,7 @@ export function ChatInterface({ extractedText, analysis, fileName }: ChatInterfa
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: 'assistant',
-        content: 'I apologize, but I encountered an error processing your question. Please try again or rephrase your question.',
+        content: 'I apologize, but I encountered an error processing your question via server AI. Please try again.',
         timestamp: new Date()
       }
       
@@ -124,11 +144,10 @@ export function ChatInterface({ extractedText, analysis, fileName }: ChatInterfa
   const clearChat = () => {
     setMessages([])
     setError(null)
-    // Re-add welcome message
     const welcomeMessage: Message = {
       id: Date.now().toString(),
       type: 'assistant',
-      content: `Hello! I've analyzed your document "${fileName}". You can now ask me specific questions about the content, legal provisions, clauses, or anything else related to this document. What would you like to know?`,
+      content: `Hello! I've analyzed your document "${fileName}". Ask me any questions about it.`,
       timestamp: new Date()
     }
     setMessages([welcomeMessage])
@@ -149,8 +168,8 @@ export function ChatInterface({ extractedText, analysis, fileName }: ChatInterfa
     <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <CardHeader
         avatar={<ChatIcon />}
-        title="Document Q&A"
-        subheader="Ask specific questions about your document and get AI-powered answers"
+        title="Document Q&A (Backend AI)"
+        subheader="Ask specific questions about your document and get backend AI-powered answers"
         action={
           messages.length > 1 && (
             <Button 
@@ -165,22 +184,7 @@ export function ChatInterface({ extractedText, analysis, fileName }: ChatInterfa
       />
 
       <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {!GeminiService.isConfigured() ? (
-          <Box display="flex" alignItems="center" justifyContent="center" flex={1}>
-            <Paper sx={{ p: 3, textAlign: 'center', bgcolor: 'action.hover' }}>
-              <ErrorIcon sx={{ fontSize: 48, color: 'warning.main', mb: 2 }} />
-              <Typography variant="h6" gutterBottom>
-                AI Chat Not Available
-              </Typography>
-              <Typography variant="body2" color="text.secondary" mb={2}>
-                Configure your Gemini API key to enable interactive Q&A
-              </Typography>
-              <Typography variant="caption" component="pre" sx={{ whiteSpace: 'pre-line' }}>
-                {GeminiService.getConfigurationInstructions()}
-              </Typography>
-            </Paper>
-          </Box>
-        ) : !extractedText ? (
+        {!extractedText && !documentId ? (
           <Box display="flex" alignItems="center" justifyContent="center" flex={1}>
             <Paper sx={{ p: 3, textAlign: 'center', bgcolor: 'action.hover' }}>
               <ChatIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
@@ -263,7 +267,7 @@ export function ChatInterface({ extractedText, analysis, fileName }: ChatInterfa
                   <Paper sx={{ p: 2 }}>
                     <Box display="flex" alignItems="center" gap={1}>
                       <CircularProgress size={16} />
-                      <Typography variant="body2">Thinking...</Typography>
+                      <Typography variant="body2">Analyzing document via server...</Typography>
                     </Box>
                   </Paper>
                 </Box>
@@ -290,7 +294,7 @@ export function ChatInterface({ extractedText, analysis, fileName }: ChatInterfa
                 </Typography>
                 <Grid container spacing={1}>
                   {suggestedQuestions.slice(0, 4).map((question, index) => (
-                    <Grid size={12} key={index}>
+                    <Grid size={{ xs: 12 }} key={index}>
                       <Button
                         variant="outlined"
                         size="small"
@@ -336,11 +340,11 @@ export function ChatInterface({ extractedText, analysis, fileName }: ChatInterfa
             </Box>
 
             <Typography variant="caption" color="text.secondary" textAlign="center">
-              AI responses are based on the uploaded document content and are for informational purposes only.
+              AI responses are processed via your Node.js backend.
             </Typography>
           </>
         )}
       </CardContent>
     </Card>
   )
-} 
+}

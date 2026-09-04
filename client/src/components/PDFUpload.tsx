@@ -37,7 +37,7 @@ configurePDFWorker()
 
 interface PDFUploadProps {
   onFileUpload: (file: File) => void
-  onTextExtracted: (text: string) => void
+  onTextExtracted: (file: File, text: string) => void
 }
 
 export function PDFUpload({ onFileUpload, onTextExtracted }: PDFUploadProps) {
@@ -135,7 +135,7 @@ export function PDFUpload({ onFileUpload, onTextExtracted }: PDFUploadProps) {
         throw new Error('Could not extract sufficient text from the PDF. The document might be image-based, password-protected, or contain mostly non-text content.')
       }
 
-      onTextExtracted(extractedText)
+      onTextExtracted(file, extractedText)
       setExtractionSuccess(true)
     } catch (error) {
       setExtractionError(error && typeof error === 'object' && 'message' in error ? (error as Error).message : 'Unknown error occurred')

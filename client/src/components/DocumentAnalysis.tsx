@@ -44,6 +44,7 @@ interface DocumentAnalysisProps {
   onAnalysisComplete: (analysis: string) => void
   isAnalyzing: boolean
   setIsAnalyzing: (analyzing: boolean) => void
+  initialAnalysis?: AnalysisResult | string | null
 }
 
 export function DocumentAnalysis({ 
@@ -51,12 +52,39 @@ export function DocumentAnalysis({
   extractedText, 
   onAnalysisComplete, 
   isAnalyzing, 
-  setIsAnalyzing 
+  setIsAnalyzing,
+  initialAnalysis
 }: DocumentAnalysisProps) {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [autoAnalyzeStarted, setAutoAnalyzeStarted] = useState(false)
   const [showTextPreview, setShowTextPreview] = useState(false)
+
+  // Synchronize initialAnalysis from backend if available
+  useEffect(() => {
+    if (initialAnalysis) {
+      if (typeof initialAnalysis === 'string') {
+        try {
+          setAnalysis(JSON.parse(initialAnalysis));
+        } catch {
+          // If plain string summary
+          setAnalysis({
+            summary: initialAnalysis,
+            keyPoints: [],
+            legalIssues: [],
+            recommendations: [],
+            documentType: 'Legal Document',
+            parties: [],
+            dates: [],
+            jurisdiction: 'Not specified'
+          });
+        }
+      } else {
+        setAnalysis(initialAnalysis);
+      }
+      setAutoAnalyzeStarted(true);
+    }
+  }, [initialAnalysis]);
 
   const analyzeDocument = async () => {
     if (!extractedText) {
@@ -79,13 +107,13 @@ export function DocumentAnalysis({
     }
   }
 
-  // Auto-analyze when text is extracted
+  // Auto-analyze when text is extracted (if backend analysis not present)
   useEffect(() => {
-    if (extractedText && !autoAnalyzeStarted && GeminiService.isConfigured()) {
+    if (extractedText && !autoAnalyzeStarted && !initialAnalysis && GeminiService.isConfigured()) {
       setAutoAnalyzeStarted(true)
       analyzeDocument()
     }
-  }, [extractedText, autoAnalyzeStarted])
+  }, [extractedText, autoAnalyzeStarted, initialAnalysis])
 
   // Get text quality assessment
   const getTextQuality = () => {
@@ -221,7 +249,16 @@ export function DocumentAnalysis({
                   AI is processing the extracted text and identifying key insights
                 </Typography>
               </Box>
-            ) : analysis ? (
+            ) : analysis ? (() => {
+              const keyPoints = analysis.keyPoints || [];
+              const legalIssues = analysis.legalIssues || (analysis as any).redFlags || [];
+              const recommendations = analysis.recommendations || [];
+              const parties = analysis.parties || (analysis as any).partiesInvolved || [];
+              const dates = analysis.dates || [];
+              const documentType = analysis.documentType || 'Legal Document';
+              const jurisdiction = analysis.jurisdiction || 'Not specified';
+
+              return (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {/* Summary - Always visible */}
                 <Paper sx={{ p: 3, bgcolor: 'primary.50', border: '1px solid', borderColor: 'primary.200' }}>
@@ -230,7 +267,7 @@ export function DocumentAnalysis({
                     <Typography variant="h5" color="primary.main">Executive Summary</Typography>
                   </Box>
                   <Typography variant="body1" sx={{ lineHeight: 1.6 }}>
-                    {analysis.summary}
+                    {analysis.summary || 'Summary unavailable.'}
                   </Typography>
                 </Paper>
 
@@ -242,7 +279,7 @@ export function DocumentAnalysis({
                         Document Type
                       </Typography>
                       <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                        {analysis.documentType}
+                        {documentType}
                       </Typography>
                     </Paper>
                   </Grid>
@@ -253,7 +290,7 @@ export function DocumentAnalysis({
                         <Typography variant="h6" color="primary">Jurisdiction</Typography>
                       </Box>
                       <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                        {analysis.jurisdiction}
+                        {jurisdiction}
                       </Typography>
                     </Paper>
                   </Grid>
@@ -264,12 +301,12 @@ export function DocumentAnalysis({
                   <AccordionSummary expandIcon={<ExpandMore />}>
                     <Box display="flex" alignItems="center">
                       <CheckCircle sx={{ color: 'success.main', mr: 1 }} />
-                      <Typography variant="h6">Key Points ({analysis.keyPoints.length})</Typography>
+                      <Typography variant="h6">Key Points ({keyPoints.length})</Typography>
                     </Box>
                   </AccordionSummary>
                   <AccordionDetails>
                     <List>
-                      {analysis.keyPoints.map((point, index) => (
+                      {keyPoints.map((point, index) => (
                         <ListItem key={index} sx={{ pl: 0, py: 1 }}>
                           <ListItemIcon sx={{ minWidth: 32 }}>
                             <Box 
@@ -300,17 +337,17 @@ export function DocumentAnalysis({
                 </Accordion>
 
                 {/* Legal Issues */}
-                {analysis.legalIssues.length > 0 && (
+                {legalIssues.length > 0 && (
                   <Accordion>
                     <AccordionSummary expandIcon={<ExpandMore />}>
                       <Box display="flex" alignItems="center">
                         <Warning sx={{ color: 'warning.main', mr: 1 }} />
-                        <Typography variant="h6">Legal Issues & Concerns ({analysis.legalIssues.length})</Typography>
+                        <Typography variant="h6">Legal Issues & Concerns ({legalIssues.length})</Typography>
                       </Box>
                     </AccordionSummary>
                     <AccordionDetails>
                       <List>
-                        {analysis.legalIssues.map((issue, index) => (
+                        {legalIssues.map((issue, index) => (
                           <ListItem key={index} sx={{ pl: 0, py: 1 }}>
                             <ListItemIcon sx={{ minWidth: 32 }}>
                               <Warning sx={{ color: 'warning.main', fontSize: 20 }} />
@@ -327,17 +364,17 @@ export function DocumentAnalysis({
                 )}
 
                 {/* Recommendations */}
-                {analysis.recommendations.length > 0 && (
+                {recommendations.length > 0 && (
                   <Accordion>
                     <AccordionSummary expandIcon={<ExpandMore />}>
                       <Box display="flex" alignItems="center">
                         <Lightbulb sx={{ color: 'info.main', mr: 1 }} />
-                        <Typography variant="h6">Recommendations ({analysis.recommendations.length})</Typography>
+                        <Typography variant="h6">Recommendations ({recommendations.length})</Typography>
                       </Box>
                     </AccordionSummary>
                     <AccordionDetails>
                       <List>
-                        {analysis.recommendations.map((recommendation, index) => (
+                        {recommendations.map((recommendation, index) => (
                           <ListItem key={index} sx={{ pl: 0, py: 1 }}>
                             <ListItemIcon sx={{ minWidth: 32 }}>
                               <Lightbulb sx={{ color: 'info.main', fontSize: 20 }} />
@@ -354,22 +391,22 @@ export function DocumentAnalysis({
                 )}
 
                 {/* Parties and Dates */}
-                {((analysis.parties.length > 0 && analysis.parties[0] !== 'Not specified') || 
-                  (analysis.dates.length > 0 && analysis.dates[0] !== 'Not specified')) && (
+                {((parties.length > 0 && parties[0] !== 'Not specified') || 
+                  (dates.length > 0 && dates[0] !== 'Not specified')) && (
                   <Accordion>
                     <AccordionSummary expandIcon={<ExpandMore />}>
                       <Typography variant="h6">Additional Details</Typography>
                     </AccordionSummary>
                     <AccordionDetails>
                       <Grid container spacing={3}>
-                        {analysis.parties.length > 0 && analysis.parties[0] !== 'Not specified' && (
+                        {parties.length > 0 && parties[0] !== 'Not specified' && (
                           <Grid size={{ xs: 12, md: 6 }}>
                             <Box display="flex" alignItems="center" mb={2}>
                               <People sx={{ mr: 1, color: 'primary.main' }} />
                               <Typography variant="h6">Parties Involved</Typography>
                             </Box>
                             <Box display="flex" flexWrap="wrap" gap={1}>
-                              {analysis.parties.map((party, index) => (
+                              {parties.map((party, index) => (
                                 <Chip 
                                   key={index} 
                                   label={party} 
@@ -381,14 +418,14 @@ export function DocumentAnalysis({
                           </Grid>
                         )}
 
-                        {analysis.dates.length > 0 && analysis.dates[0] !== 'Not specified' && (
+                        {dates.length > 0 && dates[0] !== 'Not specified' && (
                           <Grid size={{ xs: 12, md: 6 }}>
                             <Box display="flex" alignItems="center" mb={2}>
                               <Event sx={{ mr: 1, color: 'primary.main' }} />
                               <Typography variant="h6">Important Dates</Typography>
                             </Box>
                             <Box display="flex" flexWrap="wrap" gap={1}>
-                              {analysis.dates.map((date, index) => (
+                              {dates.map((date, index) => (
                                 <Chip 
                                   key={index} 
                                   label={date} 
@@ -419,7 +456,8 @@ export function DocumentAnalysis({
                   </Button>
                 </Box>
               </Box>
-            ) : (
+              );
+            })() : (
               <Box textAlign="center" py={3}>
                 <Button 
                   onClick={analyzeDocument} 
