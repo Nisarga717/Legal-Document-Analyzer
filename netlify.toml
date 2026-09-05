@@ -1,0 +1,17 @@
+# Netlify deployment config for LegalDoc AI frontend
+
+[build]
+  base    = "client"
+  command = "npm run build"
+  publish = "dist"
+
+# SPA redirect — all paths fall through to index.html
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+[build.environment]
+  NODE_VERSION = "20"
+  # VITE_API_BASE_URL is set in the Netlify dashboard under Site > Environment variables
+  # Set it to your Render backend URL e.g.: https://legaldoc-backend.onrender.com

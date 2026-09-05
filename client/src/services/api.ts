@@ -1,4 +1,13 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+// Bulletproof API URL builder:
+// 1. Strip ALL trailing slashes
+// 2. Strip any stray trailing /api so we never double-append it
+// 3. Append exactly one /api
+// This ensures VITE_API_BASE_URL can be set as either:
+//   "https://backend.onrender.com"  OR  "https://backend.onrender.com/api"
+// and the result will always be "https://backend.onrender.com/api"
+const _raw = (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'http://localhost:5000';
+const _stripped = _raw.replace(/\/+$/, '').replace(/\/api$/, '');
+const API_BASE_URL = `${_stripped}/api`;
 
 export interface User {
   id: string;

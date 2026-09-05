@@ -1,11 +1,11 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const CANDIDATE_MODELS = [
-  process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+  process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-1.5-flash',
   'gemini-1.5-pro',
-  'gemini-2.5-flash',
   'gemini-pro',
-  'gemini-1.5-flash-latest'
 ];
 
 async function generateWithFallback(prompt: string): Promise<string> {
